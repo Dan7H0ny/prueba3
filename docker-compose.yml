@@ -1,0 +1,183 @@
+version: '3.8'
+
+networks:
+  laravel_network:
+    driver: bridge
+
+volumes:
+  db_server1_data:
+    driver: local
+  db_server2_data:
+    driver: local
+  db_server3_data:
+    driver: local
+
+services:
+  #Servidor PostgreSQL
+  db_server1:
+    image: postgres:13
+    container_name: db_server1
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: auth_db
+    ports:
+      - "5450:5432"
+    volumes:
+      - db_server1_data:/var/lib/postgresql/data
+    networks:
+      - laravel_network
+
+  #Servidor PostgreSQL
+  db_server2:
+    image: postgres:13
+    container_name: db_server2
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: inventory_db
+    ports:
+      - "5451:5432"
+    volumes:
+      - db_server2_data:/var/lib/postgresql/data
+    networks:
+      - laravel_network
+
+  # Servicio de MySQL
+  db_server3:
+    image: mysql:8.0
+    container_name: db_server3
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: order_db
+      MYSQL_PASSWORD: root
+    ports:
+      - "3311:3306"
+    volumes:
+      - db_server3_data:/var/lib/mysql
+    networks:
+      - laravel_network
+
+  # Servicio de Auth
+  auth-service:
+    build: 
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    restart: unless-stopped
+    volumes:
+      - ./auth-service:/var/www/html
+    environment:
+      - APP_ENV=local
+      - APP_KEY=base64:zmfflK4898SAijpVS80SCDc/cpBeYUS69Vpv/PUw6e4=
+      - APP_DEBUG=false
+      - DB_CONNECTION=pgsql
+      - DB_HOST=db_server1
+      - DB_PORT=5432
+      - DB_DATABASE=auth_db
+      - DB_USERNAME=root
+      - DB_PASSWORD=root
+      - JWT_SECRET=aPmQwHryeIMHpPgKGGuBMRlEZ3KfQzinRE2ZdxzKNdPXvAeuUIkpcfvqrnjI2J0F
+    ports:
+      - "8888:80"
+    depends_on:
+      - db_server1
+    networks:
+      - laravel_network
+
+  # Servicio de Inventory
+  inventory-service:
+    build: 
+      context: ./inventory-service
+      dockerfile: Dockerfile
+    container_name: inventory-service
+    restart: unless-stopped
+    volumes:
+      - ./inventory-service:/var/www/html
+    environment:
+      - APP_ENV=local
+      - APP_KEY=base64:zmfflK4898SAijpVS80SCDc/cpBeYUS69Vpv/PUw6e4=
+      - APP_DEBUG=false
+      - DB_CONNECTION=pgsql
+      - DB_HOST=db_server2
+      - DB_PORT=5432
+      - DB_DATABASE=inventory_db
+      - DB_USERNAME=root
+      - DB_PASSWORD=root
+      - JWT_SECRET=aPmQwHryeIMHpPgKGGuBMRlEZ3KfQzinRE2ZdxzKNdPXvAeuUIkpcfvqrnjI2J0F
+    ports:
+      - "8889:80"
+    depends_on:
+      - db_server2
+    networks:
+      - laravel_network
+
+  # Servicio de Order service
+  order-service:
+    build: 
+      context: ./order-service
+      dockerfile: Dockerfile
+    container_name: order-service
+    restart: unless-stopped
+    volumes:
+      - ./order-service:/var/www/html
+
+    environment:
+      - DB_CONNECTION=mysql
+      - DB_HOST=db_server3
+      - DB_PORT=3306
+      - DB_DATABASE=order_db
+      - DB_USERNAME=root
+      - DB_PASSWORD=root
+      - BROADCAST_DRIVER=log
+      - CACHE_DRIVER=file
+      - FILESYSTEM_DISK=local
+      - QUEUE_CONNECTION=database
+      - SESSION_DRIVER=file
+      - SESSION_LIFETIME=120
+      - APP_ENV=local
+      - APP_KEY=base64:zmfflK4898SAijpVS80SCDc/cpBeYUS69Vpv/PUw6e4=
+      - APP_DEBUG=true
+      - JWT_SECRET=aPmQwHryeIMHpPgKGGuBMRlEZ3KfQzinRE2ZdxzKNdPXvAeuUIkpcfvqrnjI2J0F
+    ports:
+      - "8879:80"
+    depends_on:
+      - db_server3
+    networks:
+      - laravel_network
+
+# Servicio de APIGATEWAY
+  apigateway-service:
+    build: 
+      context: ./apigateway-service
+      dockerfile: Dockerfile
+    container_name: apigateway-service
+    restart: unless-stopped
+    volumes:
+      - ./apigateway-service:/var/www/html
+
+    environment:
+      - INVENTORY_SERVICE_URL=http://inventory-service
+      - ORDER_SERVICE_URL=http://order-service
+      - AUTH_SERVICE_URL=http://auth-service
+      - BROADCAST_DRIVER=log
+      - CACHE_DRIVER=file
+      - FILESYSTEM_DISK=local
+      - QUEUE_CONNECTION=database
+      - SESSION_DRIVER=file
+      - SESSION_LIFETIME=120
+      - APP_ENV=local
+      - APP_KEY=base64:zmfflK4898SAijpVS80SCDc/cpBeYUS69Vpv/PUw6e4=
+      - APP_DEBUG=true
+      - JWT_SECRET=aPmQwHryeIMHpPgKGGuBMRlEZ3KfQzinRE2ZdxzKNdPXvAeuUIkpcfvqrnjI2J0F
+    ports:
+      - "8881:80"
+    depends_on:
+      - inventory-service
+      - auth-service
+      - order-service
+    networks:
+      - laravel_network

@@ -1,0 +1,8 @@
+# Ignorar vendor en todas las subcarpetas de Laravel
+**/auth-service/vendor/
+**/apigateway-service/vendor/
+**/inventory-service/vendor/
+**/order-service/vendor/
+**/vendor/
+**/.vscode/
+# Otros archivos/directorios comunes a ignorar (opcional)
